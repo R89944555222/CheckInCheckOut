@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Time Tracking System</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: row;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .user-list {
+            padding: 20px;
+            border-right: 1px solid #ccc;
+        }
+
+        .user-list h2 {
+            margin-top: 0;
+        }
+
+        .user-list ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        .user-list li {
+            padding: 8px 0;
+            font-size: 14px;
+        }
+
+        .user-list li span {
+            font-weight: bold;
+            margin-right: 5px;
+        }
+
+        .time-tracking {
+            padding: 20px;
+            flex: 1;
+        }
+
+        .time-tracking h2 {
+            margin-top: 0;
+        }
+
+        .buttons {
+            margin-top: 10px;
+        }
+
+        .buttons button {
+            margin-right: 5px;
+            padding: 10px;
+            border: none;
+            border-radius: 5px;
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
+        }
+
+        .buttons button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+
+        #timeGrid {
+            margin-top: 20px;
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 10px;
+        }
+
+        .time-cell {
+            padding: 10px;
+            border: 1px solid #ccc;
+            text-align: center;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 20px;
+            border-radius: 5px;
+            text-align: center;
+        }
+
+        .close-button {
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            padding: 10px;
+            cursor: pointer;
+        }
+
+        .close-button:hover {
+            background: #0056b3;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="user-list">
+            <h2>Users</h2>
+            <p id="currentDate"></p>
+            <ul id="userList">
+                <!-- User names will be inserted here -->
+            </ul>
+        </div>
+        <div class="time-tracking">
+            <h2>Time Tracking</h2>
+            <select id="userSelect" multiple onchange="updateButtonsState()">
+                <!-- User options will be inserted here -->
+            </select>
+            <div class="buttons">
+                <button id="startButton" onclick="startTime()">Start</button>
+                <button onclick="endTime()">End</button>
+                <button onclick="resetTimes()">Reset</button>
+            </div>
+            <div id="timeGrid">
+                <!-- Time tracking grid will be inserted here -->
+            </div>
+        </div>
+    </div>
+
+    <div id="timeModal" class="modal">
+        <div class="modal-content">
+            <h2>Time Summary</h2>
+            <div id="timeSummary"></div>
+            <button class="close-button" onclick="closeModal()">Close</button>
+        </div>
+    </div>
+
+    <script>
+        const users = ['User 1', 'User 2', 'User 3', 'User 4', 'User 5'];
+        const userTimes = {};
+        const userStarted = {};
+        const userStartTime = {};
+
+        document.addEventListener('DOMContentLoaded', () => {
+            populateUserList();
+            populateUserSelect();
+            displayCurrentDate();
+            updateAllUsersTotalTime();
+            setInterval(updateAllUsersTotalTime, 1000); // Update live times every second
+        });
+
+        function populateUserList() {
+            const userList = document.getElementById('userList');
+            users.forEach(user => {
+                const li = document.createElement('li');
+                li.textContent = user;
+                li.id = `user-${user}`;
+                userList.appendChild(li);
+            });
+        }
+
+        function populateUserSelect() {
+            const userSelect = document.getElementById('userSelect');
+            users.forEach(user => {
+                const option = document.createElement('option');
+                option.value = user;
+                option.textContent = user;
+                userSelect.appendChild(option);
+            });
+        }
+
+        function displayCurrentDate() {
+            const currentDate = new Date().toLocaleDateString();
+            document.getElementById('currentDate').textContent = `Today's Date: ${currentDate}`;
+        }
+
+        function startTime() {
+            const selectedUsers = Array.from(document.getElementById('userSelect').selectedOptions).map(option => option.value);
+
+            selectedUsers.forEach(user => {
+                if (!userTimes[user]) userTimes[user] = [];
+
+                // If the user already has an active session, end it first
+                if (userStarted[user]) {
+                    endTimeForUser(user);
+                }
+
+                userTimes[user].push({
+                    action: 'start',
+                    time: new Date()
+                });
+                userStarted[user] = true;
+                userStartTime[user] = new Date();
+
+                const timeGrid = document.getElementById('timeGrid');
+                const timeCell = document.createElement('div');
+                timeCell.className = 'time-cell';
+                timeCell.textContent = `${user} - Start: ${userTimes[user][userTimes[user].length - 1].time.toLocaleTimeString()}`;
+                timeGrid.appendChild(timeCell);
+
+                updateUserTotalTime(user);
+            });
+
+            updateButtonsState();
+        }
+
+        function endTime() {
+            const selectedUsers = Array.from(document.getElementById('userSelect').selectedOptions).map(option => option.value);
+
+            selectedUsers.forEach(user => {
+                endTimeForUser(user);
+            });
+
+            updateButtonsState();
+            showSummary();
+        }
+
+        function endTimeForUser(user) {
+            if (userTimes[user] && userTimes[user].length > 0 && userStarted[user]) {
+                const endTime = new Date();
+                userTimes[user].push({
+                    action: 'end',
+                    time: endTime
+                });
+
+                const timeGrid = document.getElementById('timeGrid');
+                const timeCell = document.createElement('div');
+                timeCell.className = 'time-cell';
+                timeCell.textContent = `${user} - End: ${endTime.toLocaleTimeString()}`;
+                timeGrid.appendChild(timeCell);
+
+                userStarted[user] = false;
+                updateButtonsStateForUser(user);
+                updateUserTotalTime(user);
+            }
+        }
+
+        function resetTimes() {
+            document.getElementById('timeGrid').innerHTML = '';
+            Object.keys(userTimes).forEach(user => {
+                userTimes[user] = [];
+                userStarted[user] = false;
+                userStartTime[user] = null;
+                updateButtonsStateForUser(user); // Reset start button state for all users
+
+                // Update UI to reset live time
+                updateUserTotalTime(user);
+            });
+        }
+
+        function calculateTotalTime(user) {
+            const times = userTimes[user];
+            let totalTime = 0;
+            if (times) {
+                for (let i = 0; i < times.length; i += 2) {
+                    const startTime = times[i].time;
+                    const endTime = i + 1 < times.length ? times[i + 1].time : new Date();
+                    totalTime += endTime - startTime;
+                }
+            }
+            return totalTime;
+        }
+
+        function updateAllUsersTotalTime() {
+            users.forEach(user => {
+                updateUserTotalTime(user);
+            });
+        }
+
+
+        function updateUserTotalTime(user) {
+            const totalTime = calculateTotalTime(user);
+            const seconds = Math.floor((totalTime / 1000) % 60);
+            const minutes = Math.floor((totalTime / 1000 / 60) % 60);
+            const hours = Math.floor((totalTime / 1000 / 3600) % 24);
+
+            const userElement = document.getElementById(`user-${user}`);
+            userElement.innerHTML = `${user} <span>Total Time: ${hours}h ${minutes}m ${seconds}s</span>`;
+        }
+
+        function updateButtonsState() {
+            const selectedUsers = Array.from(document.getElementById('userSelect').selectedOptions).map(option => option.value);
+
+            selectedUsers.forEach(user => {
+                updateButtonsStateForUser(user);
+            });
+        }
+
+        function updateButtonsStateForUser(user) {
+            const startButton = document.getElementById('startButton');
+            startButton.disabled = userStarted[user] && userTimes[user].some(entry => entry.action === 'tart');
+        }
+
+        function showSummary() {
+            const selectedUsers = Array.from(document.getElementById('userSelect').selectedOptions).map(option => option.value);
+            const timeSummary = document.getElementById('timeSummary');
+            timeSummary.innerHTML = '';
+
+            selectedUsers.forEach(user => {
+                const times = userTimes[user];
+                if (times) {
+                    const userSummary = document.createElement('div');
+                    userSummary.innerHTML = `<h3>${user}</h3>`;
+                    let totalElapsedTime = 0;
+                    for (let i = 0; i < times.length; i += 2) {
+                        const startTime = times[i].time;
+                        const endTime = i + 1 < times.length ? times[i + 1].time : new Date();
+                        const elapsedTime = endTime - startTime;
+                        totalElapsedTime += elapsedTime;
+                        const seconds = Math.floor((elapsedTime / 1000) % 60);
+                        const minutes = Math.floor((elapsedTime / 1000 / 60) % 60);
+                        const hours = Math.floor((elapsedTime / 1000 / 3600) % 24);
+                        const timeEntry = document.createElement('p');
+                        timeEntry.textContent = `Start: ${startTime.toLocaleTimeString()} - End: ${endTime.toLocaleTimeString()} - Elapsed Time: ${hours}h ${minutes}m ${seconds}s`;
+                        userSummary.appendChild(timeEntry);
+                    }
+                    const totalSeconds = Math.floor(totalElapsedTime / 1000);
+                    const totalMinutes = Math.floor(totalSeconds / 60);
+                    const totalHours = Math.floor(totalMinutes / 60);
+                    const totalElapsedTimeString = `${totalHours}h ${totalMinutes % 60}m ${totalSeconds % 60}s`;
+                    const totalTimeEntry = document.createElement('p');
+                    totalTimeEntry.textContent = `Total Elapsed Time: ${totalElapsedTimeString}`;
+                    userSummary.appendChild(totalTimeEntry);
+                    timeSummary.appendChild(userSummary);
+                }
+            });
+
+            document.getElementById('timeModal').style.display = 'flex';
+        }
+
+        function closeModal() {
+            document.getElementById('timeModal').style.display = 'none';
+        }
+    </script>
+</body>
+
+</html>
